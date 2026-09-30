@@ -8,6 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
     $user_id = $_SESSION['user_id'];
     
     $title = $_POST['title'];
+    $category = $_POST['category']; // รับค่าหมวดหมู่การ์ด
     $description = $_POST['description'];
     $starting_price = $_POST['starting_price'];
     $min_increment = $_POST['min_increment'];
@@ -40,24 +41,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
         }
 
         if (move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
-            // ถ้ารูปใหม่อัปโหลดผ่าน ให้ลบรูปเก่าทิ้งจากโฟลเดอร์
             $old_file_path = "../uploads/" . $old_card['image_url'];
             if (file_exists($old_file_path)) {
                 unlink($old_file_path);
             }
             
-            // อัปเดตข้อมูลรวมถึงรูปภาพใหม่
-            $update_sql = "UPDATE cards SET title=?, description=?, starting_price=?, min_increment=?, image_url=? WHERE id=?";
+            // อัปเดต: เพิ่ม category (s) 
+            $update_sql = "UPDATE cards SET title=?, category=?, description=?, starting_price=?, min_increment=?, image_url=? WHERE id=?";
             $stmt = $conn->prepare($update_sql);
-            $stmt->bind_param("ssddsi", $title, $description, $starting_price, $min_increment, $new_filename, $card_id);
+            $stmt->bind_param("sssddsi", $title, $category, $description, $starting_price, $min_increment, $new_filename, $card_id);
         } else {
             die("<script>alert('อัปโหลดรูปภาพผิดพลาด'); window.history.back();</script>");
         }
     } else {
-        // กรณีไม่อัปโหลดรูปภาพใหม่ ให้อัปเดตเฉพาะข้อความ
-        $update_sql = "UPDATE cards SET title=?, description=?, starting_price=?, min_increment=? WHERE id=?";
+        // กรณีไม่อัปโหลดรูปภาพใหม่ ให้อัปเดตเฉพาะข้อความรวมถึง category
+        $update_sql = "UPDATE cards SET title=?, category=?, description=?, starting_price=?, min_increment=? WHERE id=?";
         $stmt = $conn->prepare($update_sql);
-        $stmt->bind_param("ssddi", $title, $description, $starting_price, $min_increment, $card_id);
+        $stmt->bind_param("sssddi", $title, $category, $description, $starting_price, $min_increment, $card_id);
     }
 
     // 3. ทำการ Execute การอัปเดตลงตาราง cards

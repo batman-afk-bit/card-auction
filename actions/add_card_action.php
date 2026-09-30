@@ -6,9 +6,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
     
     $owner_id = $_SESSION['user_id'];
     $title = $_POST['title'];
+    $category = $_POST['category']; // อัปเดต: รับค่าหมวดหมู่การ์ด
     $description = $_POST['description'];
     $starting_price = $_POST['starting_price'];
-    $min_increment = $_POST['min_increment']; // รับค่าบิดขั้นต่ำ
+    $min_increment = $_POST['min_increment'];
     $end_time = $_POST['end_time'];
 
     $target_dir = "../uploads/";
@@ -23,10 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
 
     if (move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
         
-        // อัปเดตคำสั่ง SQL เพิ่ม min_increment (ตัว sssddd คือ String 3 ตัว, Decimal/Double 3 ตัว)
-        $sql_card = "INSERT INTO cards (owner_id, title, description, image_url, starting_price, min_increment) VALUES (?, ?, ?, ?, ?, ?)";
+        // อัปเดต: เพิ่ม category ลงในคำสั่ง SQL และเปลี่ยน bind_param เป็น issssdd
+        $sql_card = "INSERT INTO cards (owner_id, title, category, description, image_url, starting_price, min_increment) VALUES (?, ?, ?, ?, ?, ?, ?)";
         $stmt1 = $conn->prepare($sql_card);
-        $stmt1->bind_param("isssdd", $owner_id, $title, $description, $new_filename, $starting_price, $min_increment);
+        // issssdd = integer(1), string(4), decimal/double(2)
+        $stmt1->bind_param("issssdd", $owner_id, $title, $category, $description, $new_filename, $starting_price, $min_increment);
         
         if ($stmt1->execute()) {
             $card_id = $stmt1->insert_id; 

@@ -39,12 +39,24 @@ if (!isset($_SESSION['user_id'])) {
                                 <input type="text" class="form-control" id="title" name="title" placeholder="เช่น Blue-Eyes White Dragon" required>
                             </div>
 
+                            <!-- อัปเดต: เพิ่มช่อง Select สำหรับเลือกประเภทการ์ด -->
+                            <div class="mb-3">
+                                <label for="category" class="form-label fw-bold">ประเภทการ์ดเกม</label>
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="" disabled selected>-- เลือกประเภทการ์ด --</option>
+                                    <option value="Yu-Gi-Oh!">Yu-Gi-Oh!</option>
+                                    <option value="Pokémon">Pokémon</option>
+                                    <option value="One Piece">One Piece</option>
+                                    <option value="Magic The Gathering">Magic The Gathering</option>
+                                    <option value="อื่นๆ">อื่นๆ</option>
+                                </select>
+                            </div>
+
                             <div class="mb-3">
                                 <label for="description" class="form-label fw-bold">รายละเอียด / สภาพการ์ด</label>
                                 <textarea class="form-control" id="description" name="description" rows="4" placeholder="ระบุตำหนิ หรือเกรด PSA/BGS..." required></textarea>
                             </div>
 
-                            <!-- อัปเดต: เปลี่ยนเป็น 3 คอลัมน์ (col-md-4) และเพิ่มช่องรับค่า min_increment -->
                             <div class="row">
                                 <div class="col-md-4 mb-3">
                                     <label for="starting_price" class="form-label fw-bold">ราคาเริ่มต้น (บาท)</label>

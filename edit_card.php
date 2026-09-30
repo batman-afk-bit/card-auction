@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id']) || !isset($_GET['id'])) {
 $card_id = $_GET['id'];
 $user_id = $_SESSION['user_id'];
 
-// 2. ดึงข้อมูลการ์ดเดิมขึ้นมาแสดง และต้องเช็กด้วยว่าเป็นเจ้าของการ์ดหรือไม่
+// 2. ดึงข้อมูลการ์ดเดิมขึ้นมาแสดง
 $sql = "SELECT c.*, a.end_time 
         FROM cards c 
         JOIN auctions a ON c.id = a.card_id 
@@ -56,7 +56,6 @@ $stmt->close();
                     <div class="card-body p-4">
                         <form action="actions/edit_card_action.php" method="POST" enctype="multipart/form-data">
                             
-                            <!-- ส่ง id ไปแบบซ่อน เพื่อให้รู้ว่าจะแก้ไขการ์ดใบไหน -->
                             <input type="hidden" name="card_id" value="<?php echo $card['id']; ?>">
                             
                             <div class="mb-3 text-center">
@@ -66,13 +65,25 @@ $stmt->close();
 
                             <div class="mb-3">
                                 <label for="title" class="form-label fw-bold">ชื่อการ์ด</label>
-                                <!-- ดึงค่าเดิมมาใส่ใน value -->
                                 <input type="text" class="form-control" id="title" name="title" value="<?php echo htmlspecialchars($card['title']); ?>" required>
+                            </div>
+
+                            <!-- อัปเดต: เพิ่มช่องแก้ไขประเภทการ์ด -->
+                            <div class="mb-3">
+                                <label for="category" class="form-label fw-bold">ประเภทการ์ดเกม</label>
+                                <?php $current_category = isset($card['category']) ? $card['category'] : 'อื่นๆ'; ?>
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="" disabled>-- เลือกประเภทการ์ด --</option>
+                                    <option value="Yu-Gi-Oh!" <?php if($current_category == 'Yu-Gi-Oh!') echo 'selected'; ?>>Yu-Gi-Oh!</option>
+                                    <option value="Pokémon" <?php if($current_category == 'Pokémon') echo 'selected'; ?>>Pokémon</option>
+                                    <option value="One Piece" <?php if($current_category == 'One Piece') echo 'selected'; ?>>One Piece</option>
+                                    <option value="Magic The Gathering" <?php if($current_category == 'Magic The Gathering') echo 'selected'; ?>>Magic The Gathering</option>
+                                    <option value="อื่นๆ" <?php if($current_category == 'อื่นๆ') echo 'selected'; ?>>อื่นๆ</option>
+                                </select>
                             </div>
 
                             <div class="mb-3">
                                 <label for="description" class="form-label fw-bold">รายละเอียด / สภาพการ์ด</label>
-                                <!-- Textarea จะเอาค่าเดิมมาไว้ตรงกลางแท็ก -->
                                 <textarea class="form-control" id="description" name="description" rows="4" required><?php echo htmlspecialchars($card['description']); ?></textarea>
                             </div>
 
@@ -87,14 +98,12 @@ $stmt->close();
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label for="end_time" class="form-label fw-bold">เวลาสิ้นสุดการประมูล</label>
-                                    <!-- แปลงวันที่ให้อยู่ในฟอร์แมตที่ input type datetime-local เข้าใจ (YYYY-MM-DDThh:mm) -->
                                     <input type="datetime-local" class="form-control" id="end_time" name="end_time" value="<?php echo date('Y-m-d\TH:i', strtotime($card['end_time'])); ?>" required>
                                 </div>
                             </div>
 
                             <div class="mb-4">
                                 <label for="image" class="form-label fw-bold">อัปโหลดรูปภาพใหม่ (ไม่บังคับ)</label>
-                                <!-- เอา required ออก เพราะผู้ใช้อาจจะไม่อยากเปลี่ยนรูป -->
                                 <input type="file" class="form-control" id="image" name="image" accept="image/jpeg, image/png, image/webp">
                                 <div class="form-text text-muted">* หากไม่ต้องการเปลี่ยนรูปภาพ ให้เว้นช่องนี้ไว้</div>
                             </div>
