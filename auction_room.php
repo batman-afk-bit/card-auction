@@ -66,9 +66,9 @@ $stmt->close();
                 
                 <hr>
                 
-                <h4 class="text-danger fw-bold">ราคาปัจจุบัน: ฿<?php echo number_format($card['current_price'], 2); ?></h4>
+                <h4 class="text-danger fw-bold" id="currentPriceDisplay">ราคาปัจจุบัน: ฿<?php echo number_format($card['current_price'], 2); ?></h4>
                 
-                <!-- กล่องนับเวลาถอยหลัง (ประมวลผลด้วย JavaScript ด้านล่าง) -->
+                <!-- กล่องนับเวลาถอยหลัง -->
                 <div class="countdown-box text-center my-4" id="countdownTimer">
                     กำลังคำนวณเวลา...
                 </div>
@@ -81,14 +81,14 @@ $stmt->close();
                             <input type="hidden" name="card_id" value="<?php echo $card['id']; ?>">
                             
                             <?php 
-                            // กำหนดการเพิ่มราคาขั้นต่ำครั้งละ 100 บาท
-                            $min_increment = 100; 
+                            // อัปเดต: ดึงค่าขั้นต่ำจากการ์ดใบนี้โดยตรง
+                            $min_increment = isset($card['min_increment']) ? $card['min_increment'] : 100; 
                             $next_min_bid = $card['current_price'] + $min_increment;
                             ?>
                             
                             <div class="input-group mb-3">
                                 <span class="input-group-text bg-success text-white">฿</span>
-                                <input type="number" class="form-control form-control-lg" name="bid_amount" 
+                                <input type="number" class="form-control form-control-lg" name="bid_amount" id="bidAmountInput"
                                        min="<?php echo $next_min_bid; ?>" 
                                        step="<?php echo $min_increment; ?>"
                                        placeholder="ขั้นต่ำ ฿<?php echo number_format($next_min_bid, 2); ?>" required>
@@ -110,9 +110,9 @@ $stmt->close();
         </div>
     </div>
 
-    <!-- JavaScript สำหรับนับเวลาถอยหลัง (Interactivity) -->
+    <!-- JavaScript สำหรับนับเวลาถอยหลัง & อัปเดตราคา Real-time -->
     <script>
-        // รับเวลาสิ้นสุดจาก PHP มาแปลงเป็นรูปแบบที่ JS เข้าใจ
+        // --- 1. ระบบนับเวลาถอยหลัง ---
         var endTime = new Date("<?php echo str_replace('-', '/', $card['end_time']); ?>").getTime();
 
         var countdownFunction = setInterval(function() {
@@ -133,6 +133,35 @@ $stmt->close();
                     "เหลือเวลา: " + days + " วัน " + hours + " ชม. " + minutes + " นาที " + seconds + " วินาที";
             }
         }, 1000);
+
+        // --- 2. ระบบ Real-time Polling อัปเดตราคาทุกๆ 3 วินาที ---
+        setInterval(function() {
+            var auctionId = <?php echo $card['auction_id']; ?>;
+            var minIncrement = <?php echo isset($min_increment) ? $min_increment : 100; ?>;
+
+            fetch('actions/get_current_price.php?auction_id=' + auctionId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.current_price) {
+                        let currentPriceNum = parseFloat(data.current_price);
+                        
+                        // ฟอร์แมตตัวเลขให้มีลูกน้ำและทศนิยม
+                        let formattedPrice = currentPriceNum.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        
+                        // เปลี่ยนตัวเลขราคาปัจจุบันบนหน้าจอ
+                        document.getElementById('currentPriceDisplay').innerHTML = 'ราคาปัจจุบัน: ฿' + formattedPrice;
+
+                        // เปลี่ยนข้อจำกัดขั้นต่ำในช่องกรอกตัวเลข
+                        let bidInput = document.getElementById('bidAmountInput');
+                        if (bidInput) {
+                            let nextMinBid = currentPriceNum + minIncrement;
+                            bidInput.min = nextMinBid;
+                            bidInput.placeholder = 'ขั้นต่ำ ฿' + nextMinBid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        }
+                    }
+                })
+                .catch(error => console.error('Error fetching price:', error));
+        }, 3000); 
     </script>
 </body>
 </html>

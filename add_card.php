@@ -44,12 +44,17 @@ if (!isset($_SESSION['user_id'])) {
                                 <textarea class="form-control" id="description" name="description" rows="4" placeholder="ระบุตำหนิ หรือเกรด PSA/BGS..." required></textarea>
                             </div>
 
+                            <!-- อัปเดต: เปลี่ยนเป็น 3 คอลัมน์ (col-md-4) และเพิ่มช่องรับค่า min_increment -->
                             <div class="row">
-                                <div class="col-md-6 mb-3">
+                                <div class="col-md-4 mb-3">
                                     <label for="starting_price" class="form-label fw-bold">ราคาเริ่มต้น (บาท)</label>
                                     <input type="number" class="form-control" id="starting_price" name="starting_price" min="1" required>
                                 </div>
-                                <div class="col-md-6 mb-3">
+                                <div class="col-md-4 mb-3">
+                                    <label for="min_increment" class="form-label fw-bold">บิดขั้นต่ำครั้งละ (บาท)</label>
+                                    <input type="number" class="form-control" id="min_increment" name="min_increment" min="1" value="100" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
                                     <label for="end_time" class="form-label fw-bold">เวลาสิ้นสุดการประมูล</label>
                                     <input type="datetime-local" class="form-control" id="end_time" name="end_time" required>
                                 </div>

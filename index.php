@@ -50,8 +50,8 @@ require_once 'includes/db_connect.php';
     <div class="container mb-5">
         <div class="row">
             <?php
-            // คำสั่ง SQL ดึงข้อมูลการ์ดและเวลาประมูลเฉพาะที่ยัง active อยู่
-            $sql = "SELECT c.id, c.title, c.image_url, c.starting_price, a.end_time 
+            // อัปเดต: เพิ่ม c.owner_id เข้ามาในคำสั่ง SELECT เพื่อเช็กสิทธิ์เจ้าของการ์ด
+            $sql = "SELECT c.id, c.title, c.image_url, c.starting_price, c.owner_id, a.end_time 
                     FROM cards c 
                     JOIN auctions a ON c.id = a.card_id 
                     WHERE a.status = 'active' 
@@ -80,9 +80,23 @@ require_once 'includes/db_connect.php';
                                     ปิดประมูล: <?php echo $end_time_formatted; ?>
                                 </p>
                             </div>
-                            <div class="card-footer bg-white border-0 pb-3 text-center">
-                                <!-- ปุ่มสำหรับกดเข้าไปดูรายละเอียดและประมูล (เราจะสร้างหน้านี้ในสเต็ปถัดไป) -->
-                                <a href="auction_room.php?id=<?php echo $row['id']; ?>" class="btn btn-primary w-100 fw-bold">เข้าร่วมประมูล</a>
+                            <!-- อัปเดต: เพิ่มปุ่ม ลบ/แก้ไข สำหรับเจ้าของการ์ด -->
+                            <div class="card-footer bg-white border-0 pb-3">
+                                <a href="auction_room.php?id=<?php echo $row['id']; ?>" class="btn btn-primary w-100 fw-bold mb-2">เข้าร่วมประมูล</a>
+                                
+                                <?php 
+                                // เช็กว่าคนที่ล็อกอินอยู่ คือเจ้าของการ์ดใบนี้หรือไม่
+                                if(isset($_SESSION['user_id']) && $_SESSION['user_id'] == $row['owner_id']): 
+                                ?>
+                                    <!-- ปุ่มแก้ไขและลบ จะโผล่มาเฉพาะเจ้าของเท่านั้น -->
+                                    <div class="d-flex justify-content-between">
+                                        <!-- ปุ่ม Update (เดี๋ยวเราทำในสเต็ปถัดไป) -->
+                                        <a href="edit_card.php?id=<?php echo $row['id']; ?>" class="btn btn-sm btn-outline-warning w-50 me-1">แก้ไข</a>
+                                        
+                                        <!-- ปุ่ม Delete -->
+                                        <a href="actions/delete_card.php?id=<?php echo $row['id']; ?>" class="btn btn-sm btn-outline-danger w-50 ms-1" onclick="return confirm('คุณแน่ใจหรือไม่ที่จะลบการ์ดใบนี้? (ข้อมูลการประมูลจะหายทั้งหมด)');">ลบทิ้ง</a>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
