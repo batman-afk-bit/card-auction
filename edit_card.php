@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id']) || !isset($_GET['id'])) {
 $card_id = $_GET['id'];
 $user_id = $_SESSION['user_id'];
 
-// 2. ดึงข้อมูลการ์ดเดิมขึ้นมาแสดง
+// 2. ดึงข้อมูลการ์ดหลัก
 $sql = "SELECT c.*, a.end_time 
         FROM cards c 
         JOIN auctions a ON c.id = a.card_id 
@@ -25,9 +25,20 @@ if ($result->num_rows == 0) {
     echo "<script>alert('ไม่พบข้อมูล หรือคุณไม่มีสิทธิ์แก้ไขการ์ดใบนี้!'); window.location.href='index.php';</script>";
     exit();
 }
-
 $card = $result->fetch_assoc();
 $stmt->close();
+
+// 3. ดึงรูปภาพทั้งหมดจากตาราง card_images
+$img_sql = "SELECT image_url FROM card_images WHERE card_id = ?";
+$img_stmt = $conn->prepare($img_sql);
+$img_stmt->bind_param("i", $card_id);
+$img_stmt->execute();
+$images_result = $img_stmt->get_result();
+$card_images = [];
+while($img_row = $images_result->fetch_assoc()) {
+    $card_images[] = $img_row['image_url'];
+}
+$img_stmt->close();
 ?>
 
 <!DOCTYPE html>
@@ -54,13 +65,24 @@ $stmt->close();
                         <h4 class="mb-0 text-center fw-bold">แก้ไขข้อมูลการประมูล</h4>
                     </div>
                     <div class="card-body p-4">
+                        <!-- สำคัญ: enctype="multipart/form-data" -->
                         <form action="actions/edit_card_action.php" method="POST" enctype="multipart/form-data">
                             
                             <input type="hidden" name="card_id" value="<?php echo $card['id']; ?>">
                             
-                            <div class="mb-3 text-center">
-                                <p class="mb-2 fw-bold">รูปภาพปัจจุบัน:</p>
-                                <img src="uploads/<?php echo $card['image_url']; ?>" alt="Current Card" class="img-thumbnail" style="max-height: 200px;">
+                            <!-- โชว์รูปภาพปัจจุบันทั้งหมด -->
+                            <div class="mb-4 text-center p-3 border rounded bg-light">
+                                <p class="mb-3 fw-bold text-secondary">รูปภาพปัจจุบัน (ทั้งหมด):</p>
+                                <div class="d-flex flex-wrap justify-content-center gap-2">
+                                    <?php if(!empty($card_images)): ?>
+                                        <?php foreach($card_images as $img): ?>
+                                            <img src="uploads/<?php echo $img; ?>" alt="Card Image" class="img-thumbnail shadow-sm" style="width: 120px; height: 120px; object-fit: cover;">
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <!-- กรณีการ์ดเก่าที่ลงไว้ก่อนทำระบบหลายรูป จะดึงหน้าปกมาโชว์ -->
+                                        <img src="uploads/<?php echo $card['image_url']; ?>" alt="Current Card" class="img-thumbnail shadow-sm" style="width: 120px; height: 120px; object-fit: cover;">
+                                    <?php endif; ?>
+                                </div>
                             </div>
 
                             <div class="mb-3">
@@ -68,7 +90,6 @@ $stmt->close();
                                 <input type="text" class="form-control" id="title" name="title" value="<?php echo htmlspecialchars($card['title']); ?>" required>
                             </div>
 
-                            <!-- อัปเดต: เพิ่มช่องแก้ไขประเภทการ์ด -->
                             <div class="mb-3">
                                 <label for="category" class="form-label fw-bold">ประเภทการ์ดเกม</label>
                                 <?php $current_category = isset($card['category']) ? $card['category'] : 'อื่นๆ'; ?>
@@ -102,10 +123,13 @@ $stmt->close();
                                 </div>
                             </div>
 
-                            <div class="mb-4">
-                                <label for="image" class="form-label fw-bold">อัปโหลดรูปภาพใหม่ (ไม่บังคับ)</label>
-                                <input type="file" class="form-control" id="image" name="image" accept="image/jpeg, image/png, image/webp">
-                                <div class="form-text text-muted">* หากไม่ต้องการเปลี่ยนรูปภาพ ให้เว้นช่องนี้ไว้</div>
+                            <!-- อัปเดต: เปลี่ยนเป็น name="images[]" และใส่ multiple -->
+                            <div class="mb-4 p-3 border rounded">
+                                <label for="images" class="form-label fw-bold text-primary">อัปโหลดรูปภาพใหม่ (เลือกได้หลายรูป / ไม่บังคับ)</label>
+                                <input type="file" class="form-control" id="images" name="images[]" accept="image/jpeg, image/png, image/webp" multiple>
+                                <div class="form-text text-danger">* หากอัปโหลดรูปใหม่ รูปเก่าทั้งหมดจะถูกแทนที่ / หากไม่ต้องการเปลี่ยนให้เว้นว่างไว้</div>
+                                
+                                <div id="imagePreviewContainer" class="mt-3 d-flex flex-wrap gap-2 justify-content-center"></div>
                             </div>
 
                             <button type="submit" class="btn btn-warning w-100 fw-bold fs-5 shadow-sm">บันทึกการแก้ไข</button>
@@ -116,5 +140,30 @@ $stmt->close();
         </div>
     </div>
 
+    <!-- สคริปต์สำหรับพรีวิวรูปภาพเวลาอัปโหลดใหม่ -->
+    <script>
+        document.getElementById('images').addEventListener('change', function(event) {
+            const previewContainer = document.getElementById('imagePreviewContainer');
+            previewContainer.innerHTML = ''; 
+            
+            const files = event.target.files;
+            
+            if (files) {
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.classList.add('img-thumbnail', 'shadow-sm', 'border-primary');
+                        img.style.width = '100px';
+                        img.style.height = '100px';
+                        img.style.objectFit = 'cover';
+                        previewContainer.appendChild(img);
+                    }
+                    reader.readAsDataURL(file);
+                });
+            }
+        });
+    </script>
 </body>
 </html>

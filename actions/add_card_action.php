@@ -3,51 +3,71 @@ session_start();
 require_once '../includes/db_connect.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
-    
     $owner_id = $_SESSION['user_id'];
     $title = $_POST['title'];
-    $category = $_POST['category']; // อัปเดต: รับค่าหมวดหมู่การ์ด
+    $category = $_POST['category'];
     $description = $_POST['description'];
     $starting_price = $_POST['starting_price'];
     $min_increment = $_POST['min_increment'];
     $end_time = $_POST['end_time'];
-
+    
+    // 1. จัดการอัปโหลดไฟล์หลายไฟล์ (Multiple Uploads)
+    $uploaded_files = [];
     $target_dir = "../uploads/";
-    $file_extension = strtolower(pathinfo($_FILES["image"]["name"], PATHINFO_EXTENSION));
-    $new_filename = uniqid() . '.' . $file_extension;
-    $target_file = $target_dir . $new_filename;
-
     $allowed_types = ['jpg', 'jpeg', 'png', 'webp'];
-    if (!in_array($file_extension, $allowed_types)) {
-        die("<script>alert('ไม่อนุญาตให้อัปโหลดไฟล์ประเภทนี้'); window.history.back();</script>");
-    }
 
-    if (move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
-        
-        // อัปเดต: เพิ่ม category ลงในคำสั่ง SQL และเปลี่ยน bind_param เป็น issssdd
-        $sql_card = "INSERT INTO cards (owner_id, title, category, description, image_url, starting_price, min_increment) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        $stmt1 = $conn->prepare($sql_card);
-        // issssdd = integer(1), string(4), decimal/double(2)
-        $stmt1->bind_param("issssdd", $owner_id, $title, $category, $description, $new_filename, $starting_price, $min_increment);
-        
-        if ($stmt1->execute()) {
-            $card_id = $stmt1->insert_id; 
-            $stmt1->close();
-
-            $sql_auction = "INSERT INTO auctions (card_id, end_time, status) VALUES (?, ?, 'active')";
-            $stmt2 = $conn->prepare($sql_auction);
-            $stmt2->bind_param("is", $card_id, $end_time);
-            $stmt2->execute();
-            $stmt2->close();
-
-            echo "<script>alert('ลงการ์ดประมูลสำเร็จ!'); window.location.href='../index.php';</script>";
-        } else {
-            echo "Error Database: " . $conn->error;
+    // วนลูปตามจำนวนไฟล์ที่ส่งมาผ่าน name="images[]"
+    foreach ($_FILES['images']['tmp_name'] as $key => $tmp_name) {
+        if ($_FILES['images']['error'][$key] == 0) {
+            $file_extension = strtolower(pathinfo($_FILES['images']['name'][$key], PATHINFO_EXTENSION));
+            
+            if (in_array($file_extension, $allowed_types)) {
+                // สร้างชื่อไฟล์ใหม่ไม่ให้ซ้ำกัน
+                $new_filename = uniqid() . '_' . $key . '.' . $file_extension;
+                $target_file = $target_dir . $new_filename;
+                
+                if (move_uploaded_file($tmp_name, $target_file)) {
+                    $uploaded_files[] = $new_filename; // เก็บชื่อไฟล์ที่อัปโหลดสำเร็จไว้ใน Array
+                }
+            }
         }
-    } else {
-        echo "<script>alert('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ'); window.history.back();</script>";
     }
-    $conn->close();
+
+    if (empty($uploaded_files)) {
+        die("<script>alert('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูป'); window.history.back();</script>");
+    }
+
+    // กำหนดให้รูปแรกใน Array เป็น "รูปหน้าปก"
+    $cover_image = $uploaded_files[0]; 
+
+    // 2. บันทึกข้อมูลลงตาราง cards หลัก (ใช้รูปหน้าปก)
+    $sql = "INSERT INTO cards (title, category, description, starting_price, min_increment, image_url, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("sssddsi", $title, $category, $description, $starting_price, $min_increment, $cover_image, $owner_id);
+    
+    if ($stmt->execute()) {
+        $card_id = $stmt->insert_id; // ดึง ID ของการ์ดที่เพิ่งถูกสร้างขึ้นมาใช้งานต่อ
+        
+        // 3. บันทึกข้อมูลลงตาราง auctions เพื่อตั้งเวลาประมูล
+        $auction_sql = "INSERT INTO auctions (card_id, end_time, status) VALUES (?, ?, 'active')";
+        $auction_stmt = $conn->prepare($auction_sql);
+        $auction_stmt->bind_param("is", $card_id, $end_time);
+        $auction_stmt->execute();
+        $auction_stmt->close();
+
+        // 4. บันทึกรูปภาพ "ทั้งหมด" ลงตาราง card_images (แกลลอรี)
+        $img_sql = "INSERT INTO card_images (card_id, image_url) VALUES (?, ?)";
+        $img_stmt = $conn->prepare($img_sql);
+        foreach ($uploaded_files as $file) {
+            $img_stmt->bind_param("is", $card_id, $file);
+            $img_stmt->execute();
+        }
+        $img_stmt->close();
+
+        echo "<script>alert('เพิ่มการ์ดประมูลสำเร็จ!'); window.location.href='../index.php';</script>";
+    } else {
+        echo "Error: " . $conn->error;
+    }
 } else {
     header("Location: ../index.php");
     exit();

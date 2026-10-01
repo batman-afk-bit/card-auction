@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
     $user_id = $_SESSION['user_id'];
     
     $title = $_POST['title'];
-    $category = $_POST['category']; // รับค่าหมวดหมู่การ์ด
+    $category = $_POST['category']; 
     $description = $_POST['description'];
     $starting_price = $_POST['starting_price'];
     $min_increment = $_POST['min_increment'];
@@ -28,54 +28,92 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
     $old_card = $result->fetch_assoc();
     $check_stmt->close();
 
-    // 2. ตรวจสอบว่ามีการอัปโหลดรูปใหม่หรือไม่
-    if (isset($_FILES["image"]) && $_FILES["image"]["error"] == 0) {
-        $target_dir = "../uploads/";
-        $file_extension = strtolower(pathinfo($_FILES["image"]["name"], PATHINFO_EXTENSION));
-        $new_filename = uniqid() . '.' . $file_extension;
-        $target_file = $target_dir . $new_filename;
-
-        $allowed_types = ['jpg', 'jpeg', 'png', 'webp'];
-        if (!in_array($file_extension, $allowed_types)) {
-            die("<script>alert('นามสกุลไฟล์รูปไม่ถูกต้อง'); window.history.back();</script>");
-        }
-
-        if (move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
-            $old_file_path = "../uploads/" . $old_card['image_url'];
-            if (file_exists($old_file_path)) {
+    // 2. ตรวจสอบว่ามีการอัปโหลดรูปภาพใหม่หรือไม่ (เช็ก error ว่าไม่ใช่ 4 หรือ NO_FILE)
+    if (isset($_FILES["images"]) && $_FILES["images"]["error"][0] != 4) {
+        
+        // --- 2.1 ลบไฟล์รูปภาพเก่าทิ้งออกจาก Server ---
+        $old_img_sql = "SELECT image_url FROM card_images WHERE card_id = ?";
+        $stmt_old = $conn->prepare($old_img_sql);
+        $stmt_old->bind_param("i", $card_id);
+        $stmt_old->execute();
+        $res_old = $stmt_old->get_result();
+        while($row_img = $res_old->fetch_assoc()){
+            $old_file_path = "../uploads/" . $row_img['image_url'];
+            if(file_exists($old_file_path) && is_file($old_file_path)) {
                 unlink($old_file_path);
             }
+        }
+        $stmt_old->close();
+
+        // ลบรูปปกหลักของเดิมด้วย
+        $old_cover = "../uploads/" . $old_card['image_url'];
+        if(file_exists($old_cover) && is_file($old_cover)) {
+            unlink($old_cover);
+        }
+
+        // --- 2.2 เคลียร์ข้อมูลในตารางแกลลอรี ---
+        $del_img_sql = "DELETE FROM card_images WHERE card_id = ?";
+        $stmt_del = $conn->prepare($del_img_sql);
+        $stmt_del->bind_param("i", $card_id);
+        $stmt_del->execute();
+        $stmt_del->close();
+
+        // --- 2.3 อัปโหลดไฟล์ใหม่เข้า Server ---
+        $uploaded_files = [];
+        $target_dir = "../uploads/";
+        $allowed_types = ['jpg', 'jpeg', 'png', 'webp'];
+
+        foreach ($_FILES['images']['tmp_name'] as $key => $tmp_name) {
+            if ($_FILES['images']['error'][$key] == 0) {
+                $file_extension = strtolower(pathinfo($_FILES['images']['name'][$key], PATHINFO_EXTENSION));
+                if (in_array($file_extension, $allowed_types)) {
+                    $new_filename = uniqid() . '_' . $key . '.' . $file_extension;
+                    $target_file = $target_dir . $new_filename;
+                    if (move_uploaded_file($tmp_name, $target_file)) {
+                        $uploaded_files[] = $new_filename;
+                    }
+                }
+            }
+        }
+
+        // --- 2.4 บันทึกข้อมูลและรูปใหม่ลงฐานข้อมูล ---
+        if (!empty($uploaded_files)) {
+            $cover_image = $uploaded_files[0]; // รูปแรกคือปก
             
-            // อัปเดต: เพิ่ม category (s) 
+            // อัปเดตตารางหลัก
             $update_sql = "UPDATE cards SET title=?, category=?, description=?, starting_price=?, min_increment=?, image_url=? WHERE id=?";
             $stmt = $conn->prepare($update_sql);
-            $stmt->bind_param("sssddsi", $title, $category, $description, $starting_price, $min_increment, $new_filename, $card_id);
-        } else {
-            die("<script>alert('อัปโหลดรูปภาพผิดพลาด'); window.history.back();</script>");
+            $stmt->bind_param("sssddsi", $title, $category, $description, $starting_price, $min_increment, $cover_image, $card_id);
+            $stmt->execute();
+            $stmt->close();
+
+            // Insert แกลลอรีชุดใหม่
+            $img_sql = "INSERT INTO card_images (card_id, image_url) VALUES (?, ?)";
+            $img_stmt = $conn->prepare($img_sql);
+            foreach ($uploaded_files as $file) {
+                $img_stmt->bind_param("is", $card_id, $file);
+                $img_stmt->execute();
+            }
+            $img_stmt->close();
         }
+
     } else {
-        // กรณีไม่อัปโหลดรูปภาพใหม่ ให้อัปเดตเฉพาะข้อความรวมถึง category
+        // กรณี "ไม่อัปโหลดรูปภาพใหม่" ให้อัปเดตเฉพาะข้อความธรรมดา
         $update_sql = "UPDATE cards SET title=?, category=?, description=?, starting_price=?, min_increment=? WHERE id=?";
         $stmt = $conn->prepare($update_sql);
         $stmt->bind_param("sssddi", $title, $category, $description, $starting_price, $min_increment, $card_id);
-    }
-
-    // 3. ทำการ Execute การอัปเดตลงตาราง cards
-    if ($stmt->execute()) {
+        $stmt->execute();
         $stmt->close();
-        
-        // 4. อัปเดตเวลาสิ้นสุดการประมูลในตาราง auctions
-        $auction_sql = "UPDATE auctions SET end_time=? WHERE card_id=?";
-        $auction_stmt = $conn->prepare($auction_sql);
-        $auction_stmt->bind_param("si", $end_time, $card_id);
-        $auction_stmt->execute();
-        $auction_stmt->close();
-
-        echo "<script>alert('แก้ไขข้อมูลสำเร็จ!'); window.location.href='../auction_room.php?id=$card_id';</script>";
-    } else {
-        echo "Error: " . $conn->error;
     }
 
+    // อัปเดตเวลาสิ้นสุดการประมูลในตาราง auctions
+    $auction_sql = "UPDATE auctions SET end_time=? WHERE card_id=?";
+    $auction_stmt = $conn->prepare($auction_sql);
+    $auction_stmt->bind_param("si", $end_time, $card_id);
+    $auction_stmt->execute();
+    $auction_stmt->close();
+
+    echo "<script>alert('แก้ไขข้อมูลสำเร็จ!'); window.location.href='../auction_room.php?id=$card_id';</script>";
     $conn->close();
 
 } else {
