@@ -48,10 +48,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_SESSION['user_id'])) {
     if ($stmt->execute()) {
         $card_id = $stmt->insert_id; // ดึง ID ของการ์ดที่เพิ่งถูกสร้างขึ้นมาใช้งานต่อ
         
-        // 3. บันทึกข้อมูลลงตาราง auctions เพื่อตั้งเวลาประมูล
-        $auction_sql = "INSERT INTO auctions (card_id, end_time, status) VALUES (?, ?, 'active')";
+        // 3. บันทึกข้อมูลลงตาราง auctions เพื่อตั้งเวลาประมูล (อัปเดต: เพิ่ม seller_id ลงไปบันทึกด้วย)
+        $auction_sql = "INSERT INTO auctions (card_id, seller_id, end_time, status) VALUES (?, ?, ?, 'active')";
         $auction_stmt = $conn->prepare($auction_sql);
-        $auction_stmt->bind_param("is", $card_id, $end_time);
+        $auction_stmt->bind_param("iis", $card_id, $owner_id, $end_time);
         $auction_stmt->execute();
         $auction_stmt->close();
 

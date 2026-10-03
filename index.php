@@ -71,10 +71,9 @@ require_once 'includes/db_connect.php';
             box-shadow: 0 0 0 0.25rem rgba(255, 106, 0, 0.25) !important;
         }
 
-        /* อัปเดต: แก้ไขสีพื้นหลังและตัวอักษรของตัวเลือกใน Dropdown */
         select.custom-input option {
-            background-color: var(--color-card-bg); /* บังคับให้พื้นหลังเป็นสีน้ำเงินเข้ม */
-            color: var(--text-light); /* บังคับให้ตัวหนังสือเป็นสีขาว */
+            background-color: var(--color-card-bg);
+            color: var(--text-light);
         }
 
         .btn-theme-primary {
@@ -103,9 +102,12 @@ require_once 'includes/db_connect.php';
 
                 <?php if (isset($_SESSION['user_id'])): ?>
                     <a href="add_card.php" class="btn btn-outline-light btn-sm me-3 fw-bold shadow-sm">+ ลงประมูลการ์ด</a>
-                    <span class="text-light me-3">
-                        ยินดีต้อนรับ, <strong><?php echo $_SESSION['username']; ?></strong>
-                    </span>
+                    
+                    <!-- อัปเดต: เปลี่ยนเป็นปุ่มลิงก์ไปหน้าโปรไฟล์ -->
+                    <a href="profile.php" class="text-decoration-none text-light me-3 px-3 py-1 rounded bg-dark border border-secondary" style="transition: 0.3s;">
+                        👤 <strong><?php echo $_SESSION['username']; ?></strong>
+                    </a>
+                    
                     <a href="actions/logout.php" class="btn btn-outline-danger btn-sm">ออกจากระบบ</a>
                 <?php else: ?>
                     <a href="login.php" class="btn btn-outline-light btn-sm me-2">เข้าสู่ระบบ</a>
@@ -122,9 +124,10 @@ require_once 'includes/db_connect.php';
 
     <div class="container mb-4">
         <?php 
-            $search_keyword = isset($_GET['search']) ? trim($_GET['search']) : '';$filter_category = isset($_GET['category']) ?$_GET['category'] : '';
-            $min_price = (isset($_GET['min_price']) && $_GET['min_price'] !== '') ?$_GET['min_price'] : '';
-            $max_price = (isset($_GET['max_price']) && $_GET['max_price'] !== '') ?$_GET['max_price'] : '';
+            $search_keyword = isset($_GET['search']) ? trim($_GET['search']) : '';
+            $filter_category = isset($_GET['category']) ? $_GET['category'] : '';
+            $min_price = (isset($_GET['min_price']) && $_GET['min_price'] !== '') ? $_GET['min_price'] : '';
+            $max_price = (isset($_GET['max_price']) && $_GET['max_price'] !== '') ? $_GET['max_price'] : '';
         ?>
         <form action="index.php" method="GET" class="p-3 theme-box shadow-sm rounded">
             <div class="row g-2 align-items-center">
@@ -152,7 +155,7 @@ require_once 'includes/db_connect.php';
                 </div>
             </div>
             
-            <?php if(!empty($search_keyword) OR !empty($filter_category) OR $min_price !== '' OR$max_price !== ''): ?>
+            <?php if(!empty($search_keyword) OR !empty($filter_category) OR $min_price !== '' OR $max_price !== ''): ?>
                 <div class="text-end mt-2">
                     <a href="index.php" class="btn btn-sm btn-outline-light fw-bold">ล้างค่าตัวกรองทั้งหมด</a>
                 </div>
@@ -177,22 +180,45 @@ require_once 'includes/db_connect.php';
             $types = "";
             $params = [];
             
-            if (!empty($search_keyword)) {$sql = str_replace("ORDER BY", "AND c.title LIKE ? ORDER BY", $sql);$types .= "s"; $params[] = "\%" . $search_keyword . "%"; }
-            if (!empty($filter_category)) {$sql = str_replace("ORDER BY", "AND c.category = ? ORDER BY", $sql);$types .= "s"; $params[] =$filter_category; }
-            if ($min_price !== '') {$sql = str_replace("ORDER BY", "AND c.starting_price >= ? ORDER BY", $sql);$types .= "d"; $params[] =$min_price; }
-            if ($max_price !== '') {$sql = str_replace("ORDER BY", "AND c.starting_price <= ? ORDER BY", $sql); $types .= "d"; $params[] = $max_price; }$stmt = $conn->prepare($sql);
-            if (!empty($types)) { $stmt->bind_param($types, ...$params); }$stmt->execute();
-            $result =$stmt->get_result();
+            // อัปเดต: แก้ไข \% เป็น % และเว้นวรรคตัวแปรให้ถูกต้อง
+            if (!empty($search_keyword)) { 
+                $sql = str_replace("ORDER BY", "AND c.title LIKE ? ORDER BY", $sql);
+                $types .= "s"; 
+                $params[] = "%" . $search_keyword . "%"; 
+            }
+            if (!empty($filter_category)) { 
+                $sql = str_replace("ORDER BY", "AND c.category = ? ORDER BY", $sql);
+                $types .= "s"; 
+                $params[] = $filter_category; 
+            }
+            if ($min_price !== '') { 
+                $sql = str_replace("ORDER BY", "AND c.starting_price >= ? ORDER BY", $sql);
+                $types .= "d"; 
+                $params[] = $min_price; 
+            }
+            if ($max_price !== '') { 
+                $sql = str_replace("ORDER BY", "AND c.starting_price <= ? ORDER BY", $sql); 
+                $types .= "d"; 
+                $params[] = $max_price; 
+            }
+            
+            $stmt = $conn->prepare($sql);
+            if (!empty($types)) { 
+                $stmt->bind_param($types, ...$params); 
+            }
+            
+            $stmt->execute();
+            $result = $stmt->get_result();
 
             if ($result->num_rows > 0) {
-                while($row =$result->fetch_assoc()) {
+                while($row = $result->fetch_assoc()) {
                     $end_time_formatted = date('d/m/Y H:i', strtotime($row['end_time']));
                     $is_ended = (strtotime($row['end_time']) <= time());
                     
-                    $price_label =$is_ended ? 'ราคาปิดประมูล:' : 'ราคาปัจจุบัน:';
-                    $bidder_label =$is_ended ? '🏆 ผู้ชนะการประมูล:' : '👑 ผู้นำประมูล:';
-                    $btn_class =$is_ended ? 'btn-secondary text-light border-secondary' : 'btn-theme-primary';
-                    $btn_text =$is_ended ? 'ดูสรุปผลประมูล' : 'เข้าร่วมประมูล';
+                    $price_label = $is_ended ? 'ราคาปิดประมูล:' : 'ราคาปัจจุบัน:';
+                    $bidder_label = $is_ended ? '🏆 ผู้ชนะการประมูล:' : '👑 ผู้นำประมูล:';
+                    $btn_class = $is_ended ? 'btn-secondary text-light border-secondary' : 'btn-theme-primary';
+                    $btn_text = $is_ended ? 'ดูสรุปผลประมูล' : 'เข้าร่วมประมูล';
             ?>
                     <div class="col-md-4 mb-4">
                         <div class="card h-100 theme-box shadow-sm border-0">
